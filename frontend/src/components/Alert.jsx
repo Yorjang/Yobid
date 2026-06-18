@@ -1,4 +1,3 @@
-import React from 'react';
 import { AlertCircle, CheckCircle } from 'lucide-react';
 
 export default function Alert({ message, type = 'error' }) {
