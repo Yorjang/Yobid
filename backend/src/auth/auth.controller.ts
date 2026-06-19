@@ -3,6 +3,7 @@ import {
   Post,
   Body,
   Get,
+  Patch,
   UseGuards,
   UnauthorizedException,
   Request,
@@ -44,12 +45,11 @@ export class AuthController {
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
-    const { password, ...result } = user;
-    return result;
+    return user;
   }
 
   @UseGuards(JwtAuthGuard)
-  @Post('profile')
+  @Patch('profile')
   async updateProfile(@Request() req, @Body() body: any) {
     return this.authService.updateProfile(req.user.userId, body);
   }
@@ -66,7 +66,8 @@ export class AuthController {
   @UseGuards(AuthGuard('google'))
   async googleCallback(@Request() req, @Res() res: Response) {
     const { access_token } = await this.authService.login(req.user);
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5174';
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
     res.redirect(`${frontendUrl}/oauth/callback?token=${access_token}`);
   }
 
@@ -82,7 +83,8 @@ export class AuthController {
   @UseGuards(AuthGuard('github'))
   async githubCallback(@Request() req, @Res() res: Response) {
     const { access_token } = await this.authService.login(req.user);
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5174';
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
     res.redirect(`${frontendUrl}/oauth/callback?token=${access_token}`);
   }
 }

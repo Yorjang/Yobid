@@ -1,6 +1,7 @@
 import { Injectable, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
+import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -8,7 +9,7 @@ export class AuthService {
   constructor(
     private jwtService: JwtService,
     private prisma: PrismaService,
-  ) { }
+  ) {}
 
   async validateUser(email: string, pass: string): Promise<any> {
     const user = await this.prisma.user.findUnique({
@@ -21,7 +22,12 @@ export class AuthService {
     return null;
   }
 
-  async register(email: string, pass: string, name?: string): Promise<any> {
+  async register(
+    email: string,
+    pass: string,
+    name?: string,
+    role: Role = Role.MEMBER,
+  ): Promise<any> {
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
     });
@@ -35,6 +41,7 @@ export class AuthService {
         email,
         password: hashedPassword,
         name,
+        role,
       },
     });
 
@@ -43,9 +50,20 @@ export class AuthService {
   }
 
   async login(user: any) {
-    const payload = { email: user.email, sub: user.id };
+    const payload = {
+      email: user.email,
+      sub: user.id,
+      role: user.role,
+    };
     return {
       access_token: this.jwtService.sign(payload),
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        avatar: user.avatar,
+      },
     };
   }
 
@@ -83,7 +101,7 @@ export class AuthService {
       return result;
     }
 
-    // 3. Create a brand-new OAuth user (no password)
+    // 3. Create a brand-new OAuth user (no password), default role = MEMBER
     user = await this.prisma.user.create({
       data: {
         email,
@@ -91,6 +109,7 @@ export class AuthService {
         provider,
         providerId,
         password: null,
+        role: Role.MEMBER,
       },
     });
 
@@ -99,15 +118,24 @@ export class AuthService {
   }
 
   async getUserById(id: number) {
-    return this.prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { id },
     });
+    if (!user) return null;
+    const { password, ...result } = user;
+    return result;
   }
 
-  async updateProfile(userId: number, data: { name?: string; email?: string; password?: string }) {
+  async updateProfile(
+    userId: number,
+    data: { name?: string; email?: string; password?: string; avatar?: string },
+  ) {
     const updateData: any = {};
     if (data.name !== undefined) {
       updateData.name = data.name;
+    }
+    if (data.avatar !== undefined) {
+      updateData.avatar = data.avatar;
     }
     if (data.email !== undefined) {
       if (data.email) {

@@ -6,15 +6,194 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "mysql"
+  url      = env("DATABASE_URL")
 }
 
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  GUEST
+  MEMBER
+  PROJECT_MANAGER
+  ADMIN
+}
+
+enum WorkspaceRole {
+  OWNER
+  MANAGER
+  MEMBER
+}
+
+enum ProjectRole {
+  MANAGER
+  MEMBER
+}
+
+enum TaskStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
 model User {
-  id         Int     @id @default(autoincrement())
-  email      String  @unique
+  id         Int      @id @default(autoincrement())
+  email      String   @unique
   name       String?
   password   String?
-  provider   String? // 'google' | 'github' | null (local)
-  providerId String? // OAuth provider user ID
+  provider   String?  // 'google' | 'github' | null (local)
+  providerId String?  // OAuth provider user ID
+  role       Role     @default(MEMBER)
+  avatar     String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  ownedWorkspaces    Workspace[]       @relation("WorkspaceOwner")
+  workspaceMemberships WorkspaceMember[]
+  projectMemberships  ProjectMember[]
+  assignedTasks      Task[]            @relation("TaskAssignee")
+  createdTasks       Task[]            @relation("TaskCreator")
+  subtasks           Subtask[]
+  comments           Comment[]
+  notifications      Notification[]
+}
+
+model Workspace {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  slug        String   @unique
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  ownerId  Int
+  owner    User              @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  members  WorkspaceMember[]
+  projects Project[]
+}
+
+model WorkspaceMember {
+  id          Int           @id @default(autoincrement())
+  role        WorkspaceRole @default(MEMBER)
+  joinedAt    DateTime      @default(now())
+
+  workspaceId Int
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  userId Int
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+}
+
+model Project {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspaceId Int
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  members     ProjectMember[]
+  tasks       Task[]
+}
+
+model ProjectMember {
+  id       Int         @id @default(autoincrement())
+  role     ProjectRole @default(MEMBER)
+  joinedAt DateTime    @default(now())
+
+  projectId Int
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  userId Int
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+}
+
+model Task {
+  id          Int        @id @default(autoincrement())
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  priority    Priority   @default(MEDIUM)
+  deadline    DateTime?
+  position    Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relations
+  projectId Int
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  assigneeId Int?
+  assignee   User?  @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  creatorId Int
+  creator   User  @relation("TaskCreator", fields: [creatorId], references: [id])
+
+  subtasks  Subtask[]
+  comments  Comment[]
+}
+
+model Subtask {
+  id          Int      @id @default(autoincrement())
+  title       String
+  isCompleted Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  taskId Int
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  assigneeId Int?
+  assignee   User? @relation(fields: [assigneeId], references: [id])
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  taskId Int
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  title     String
+  message   String
+  type      String   @default("INFO") // INFO | WARNING | SUCCESS | ERROR
+  isRead    Boolean  @default(false)
+  link      String?  // optional deep-link to the related resource
+  createdAt DateTime @default(now())
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
