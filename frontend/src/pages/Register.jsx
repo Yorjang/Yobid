@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { User, Mail, Lock, Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react';
 import Alert from '../components/Alert';
+import { authApi } from '../services/api';
 
 export default function Register() {
   const [name, setName] = useState('');
@@ -13,16 +14,9 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState({ message: '', type: 'error' });
   const [focusedField, setFocusedField] = useState(null);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   const navigate = useNavigate();
   const specialCharRegex = /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/;
 
-  useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      navigate('/dashboard');
-    }
-  }, [navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -50,18 +44,7 @@ export default function Register() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name: name || undefined }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Registration failed. Please try again.');
-      }
-
+      await authApi.register(email, password, name);
       setAlert({ message: 'Account created successfully! Redirecting to login...', type: 'success' });
       setTimeout(() => navigate('/login'), 2000);
     } catch (err) {

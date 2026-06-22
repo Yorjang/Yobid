@@ -1,29 +1,47 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 /**
- * OAuthCallback — intermediate page that receives the JWT token from the
- * backend OAuth redirect (/oauth/callback?token=<jwt>) and stores it in
- * localStorage before navigating to the dashboard.
+ * OAuthCallback — receives the JWT token from the backend OAuth redirect
+ * (/oauth/callback?token=<jwt>), fetches the full user profile via AuthContext,
+ * then navigates to the dashboard.
  */
 export default function OAuthCallback() {
   const navigate = useNavigate();
   const location = useLocation();
-  const token = useMemo(() => new URLSearchParams(location.search).get('token'), [location.search]);
-  const status = token ? 'success' : 'error';
-  const message = token ? '' : 'Authentication failed. No token received.';
+  const { loginWithToken } = useAuth();
+
+  const token = useMemo(
+    () => new URLSearchParams(location.search).get('token'),
+    [location.search],
+  );
+
+  const [status, setStatus] = useState(token ? 'loading' : 'error');
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
-    if (token) {
-      localStorage.setItem('access_token', token);
-      const timeoutId = setTimeout(() => navigate('/dashboard', { replace: true }), 1200);
-      return () => clearTimeout(timeoutId);
-    } else {
-      const timeoutId = setTimeout(() => navigate('/login', { replace: true }), 3000);
-      return () => clearTimeout(timeoutId);
+    if (!token) {
+      setStatus('error');
+      setErrorMsg('Authentication failed. No token received.');
+      const id = setTimeout(() => navigate('/login', { replace: true }), 3000);
+      return () => clearTimeout(id);
     }
-  }, [token, navigate]);
+
+    loginWithToken(token)
+      .then(() => {
+        setStatus('success');
+        const id = setTimeout(() => navigate('/dashboard', { replace: true }), 1200);
+        return () => clearTimeout(id);
+      })
+      .catch((err) => {
+        setStatus('error');
+        setErrorMsg(err.message || 'Authentication failed.');
+        const id = setTimeout(() => navigate('/login', { replace: true }), 3000);
+        return () => clearTimeout(id);
+      });
+  }, [token, loginWithToken, navigate]);
 
   return (
     <div className="oauth-callback-page">
@@ -54,7 +72,7 @@ export default function OAuthCallback() {
               <XCircle size={40} />
             </div>
             <h2 className="oauth-title">Authentication failed</h2>
-            <p className="oauth-subtitle">{message || 'Redirecting back to login...'}</p>
+            <p className="oauth-subtitle">{errorMsg || 'Redirecting back to login...'}</p>
           </>
         )}
       </div>

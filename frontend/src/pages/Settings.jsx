@@ -9,12 +9,16 @@ import {
   Mail, Eye, EyeOff, Loader2, Pin, Sparkles, ChevronDown, BellOff,
   BarChart2, Download
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { authApi } from '../services/api';
+import Sidebar from '../components/Sidebar';
 
 export default function SettingsPage() {
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
+  const { user, logout, updateUser } = useAuth();
+  const [profile, setProfile] = useState(user);
+  const [loading] = useState(false);
+  const [fullName, setFullName] = useState(user?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
   const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [twoFAEnabled, setTwoFAEnabled] = useState(false);
@@ -44,23 +48,14 @@ export default function SettingsPage() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-
+  // Sync local form state when user changes
   useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (!token) { navigate('/login'); return; }
-    fetch(`${API_URL}/auth/profile`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(d => {
-        setProfile(d);
-        setFullName(d.name || '');
-        setEmail(d.email || '');
-      })
-      .catch(() => { localStorage.removeItem('access_token'); navigate('/login'); })
-      .finally(() => setLoading(false));
-  }, [navigate, API_URL]);
+    if (user) {
+      setProfile(user);
+      setFullName(user.name || '');
+      setEmail(user.email || '');
+    }
+  }, [user]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -76,33 +71,14 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     setSaveMsg('');
-    const token = localStorage.getItem('access_token');
     try {
-      const payload = {
-        name: fullName,
-        email: email,
-      };
-      if (newPassword) {
-        payload.password = newPassword;
-      }
-      
-      const res = await fetch(`${API_URL}/auth/profile`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
+      const payload = { name: fullName, email };
+      if (newPassword) payload.password = newPassword;
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Failed to save changes');
-      }
-
-      const updated = await res.json();
+      const updated = await authApi.updateProfile(payload);
+      updateUser(updated);
       setProfile(updated);
-      setNewPassword(''); // Reset password field
+      setNewPassword('');
       setSaveMsg('Changes saved!');
     } catch (err) {
       setSaveMsg(`Error: ${err.message}`);
@@ -113,7 +89,7 @@ export default function SettingsPage() {
   };
 
   const handleSignOut = () => {
-    localStorage.removeItem('access_token');
+    logout();
     navigate('/login');
   };
 
@@ -373,46 +349,7 @@ export default function SettingsPage() {
     <div className={`dash-page ${sidebarOpen ? '' : 'dash-page--collapsed'}`}>
 
       {/* Global Sidebar (far left) */}
-      <aside className={`dash-sidebar ${sidebarOpen ? 'dash-sidebar--open' : 'dash-sidebar--closed'}`}>
-        <div className="dash-sidebar-logo">
-          <div className="dash-sidebar-icon">
-            <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
-              <path d="M4 20L10 14L14 18L20 10L24 14" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <circle cx="14" cy="14" r="12" stroke="white" strokeWidth="2" opacity="0.3"/>
-            </svg>
-          </div>
-          {sidebarOpen && <span className="dash-sidebar-brand">Yobid</span>}
-        </div>
-
-        <nav className="dash-nav-links">
-          <button onClick={() => navigate('/dashboard')} className="dash-nav-item" style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}>
-            <LayoutDashboard size={18} />
-            {sidebarOpen && <span>Dashboard</span>}
-          </button>
-          <button onClick={() => navigate('/dashboard')} className="dash-nav-item" style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}>
-            <CheckSquare size={18} />
-            {sidebarOpen && <span>Tasks</span>}
-          </button>
-          <button onClick={() => navigate('/dashboard')} className="dash-nav-item" style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}>
-            <Users size={18} />
-            {sidebarOpen && <span>Team</span>}
-          </button>
-          <button onClick={() => navigate('/dashboard')} className="dash-nav-item" style={{ background: 'none', border: 'none', width: '100%', textAlign: 'left', cursor: 'pointer' }}>
-            <BarChart2 size={18} />
-            {sidebarOpen && <span>Reports</span>}
-          </button>
-        </nav>
-
-        {/* Collapse toggle button */}
-        <button
-          className="dash-sidebar-toggle"
-          onClick={toggleSidebar}
-          id="btn-toggle-sidebar"
-          aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-        >
-          {sidebarOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-        </button>
-      </aside>
+      <Sidebar sidebarOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
 
       {/* Main layout area */}
       <div className="dash-main">

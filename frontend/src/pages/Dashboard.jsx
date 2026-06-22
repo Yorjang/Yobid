@@ -9,15 +9,28 @@ import {
   HelpCircle, Briefcase, FileText, Video,
   AlarmClock, Sparkles, Trash2, Pin,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { notificationsApi } from '../services/api';
+import Sidebar from '../components/Sidebar';
+
+/** Map backend role → display label + color */
+const ROLE_META = {
+  ADMIN:           { label: 'Admin',           color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
+  PROJECT_MANAGER: { label: 'Project Manager', color: '#7c3aed', bg: 'rgba(124,58,237,0.1)' },
+  MEMBER:          { label: 'Member',           color: '#06b6d4', bg: 'rgba(6,182,212,0.1)' },
+  GUEST:           { label: 'Guest',            color: '#9ca3af', bg: 'rgba(156,163,175,0.1)' },
+};
 
 export default function Dashboard() {
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { user, logout } = useAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     const saved = localStorage.getItem('sidebarOpen');
     return saved !== null ? JSON.parse(saved) : true;
   });
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const navigate = useNavigate();
+  const dropdownRef = useRef(null);
 
   const toggleSidebar = () => {
     setSidebarOpen(prev => {
@@ -26,44 +39,13 @@ export default function Dashboard() {
       return next;
     });
   };
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const navigate = useNavigate();
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-  const dropdownRef = useRef(null);
 
+  // Fetch unread notification count
   useEffect(() => {
-    const fetchProfile = async () => {
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        navigate('/login');
-        return;
-      }
-
-      try {
-        const res = await fetch(`${API_URL}/auth/profile`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) {
-          if (res.status === 401) {
-            localStorage.removeItem('access_token');
-            navigate('/login');
-            return;
-          }
-          throw new Error('Failed to load profile information');
-        }
-
-        const data = await res.json();
-        setProfile(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProfile();
-  }, [navigate, API_URL]);
+    notificationsApi.countUnread()
+      .then(d => setUnreadCount(d.unreadCount ?? 0))
+      .catch(() => {});
+  }, []);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -77,25 +59,14 @@ export default function Dashboard() {
   }, []);
 
   const handleSignOut = () => {
-    localStorage.removeItem('access_token');
+    logout();
     navigate('/login');
   };
 
-  if (loading) {
-    return (
-      <div className="dash-loading-screen">
-        <div className="dash-loading-card">
-          <div className="dash-loading-icon">
-            <Loader2 size={32} className="dash-spinner" />
-          </div>
-          <p className="dash-loading-text">Loading your workspace...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const userDisplayName = profile?.name || profile?.email?.split('@')[0] || 'User';
+  const userDisplayName = user?.name || user?.email?.split('@')[0] || 'User';
   const avatarLetter = userDisplayName.charAt(0).toUpperCase();
+  const roleMeta = ROLE_META[user?.role] ?? ROLE_META.MEMBER;
+
   const greeting = (() => {
     const h = new Date().getHours();
     if (h < 12) return 'Good morning';
@@ -105,55 +76,16 @@ export default function Dashboard() {
 
   const stats = [
     { icon: <CheckSquare size={20} />, label: 'Tasks Completed', value: '0', color: '#7c3aed', bg: 'rgba(124,58,237,0.08)' },
-    { icon: <Users size={20} />, label: 'Team Members', value: '1', color: '#06b6d4', bg: 'rgba(6,182,212,0.08)' },
-    { icon: <BarChart2 size={20} />, label: 'Projects Active', value: '0', color: '#10b981', bg: 'rgba(16,185,129,0.08)' },
-    { icon: <TrendingUp size={20} />, label: 'Productivity', value: '—', color: '#f59e0b', bg: 'rgba(245,158,11,0.08)' },
+    { icon: <Users size={20} />,       label: 'Team Members',    value: '1', color: '#06b6d4', bg: 'rgba(6,182,212,0.08)' },
+    { icon: <BarChart2 size={20} />,   label: 'Projects Active', value: '0', color: '#10b981', bg: 'rgba(16,185,129,0.08)' },
+    { icon: <TrendingUp size={20} />,  label: 'Productivity',    value: '—', color: '#f59e0b', bg: 'rgba(245,158,11,0.08)' },
   ];
 
   return (
     <div className={`dash-page ${sidebarOpen ? '' : 'dash-page--collapsed'}`}>
 
       {/* Sidebar */}
-      <aside className={`dash-sidebar ${sidebarOpen ? 'dash-sidebar--open' : 'dash-sidebar--closed'}`}>
-        <div className="dash-sidebar-logo">
-          <div className="dash-sidebar-icon">
-            <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
-              <path d="M4 20L10 14L14 18L20 10L24 14" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <circle cx="14" cy="14" r="12" stroke="white" strokeWidth="2" opacity="0.3"/>
-            </svg>
-          </div>
-          {sidebarOpen && <span className="dash-sidebar-brand">Yobid</span>}
-        </div>
-
-        <nav className="dash-nav-links">
-          <a href="#" className="dash-nav-item dash-nav-item--active" id="nav-dashboard">
-            <LayoutDashboard size={18} />
-            {sidebarOpen && <span>Dashboard</span>}
-          </a>
-          <a href="#" className="dash-nav-item" id="nav-tasks">
-            <CheckSquare size={18} />
-            {sidebarOpen && <span>Tasks</span>}
-          </a>
-          <a href="#" className="dash-nav-item" id="nav-team">
-            <Users size={18} />
-            {sidebarOpen && <span>Team</span>}
-          </a>
-          <a href="#" className="dash-nav-item" id="nav-reports">
-            <BarChart2 size={18} />
-            {sidebarOpen && <span>Reports</span>}
-          </a>
-        </nav>
-
-        {/* Collapse toggle button */}
-        <button
-          className="dash-sidebar-toggle"
-          onClick={toggleSidebar}
-          id="btn-toggle-sidebar"
-          aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-        >
-          {sidebarOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-        </button>
-      </aside>
+      <Sidebar sidebarOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
 
       {/* Main content */}
       <div className="dash-main">
@@ -163,8 +95,21 @@ export default function Dashboard() {
             <h2 className="dash-page-title">Dashboard</h2>
           </div>
           <div className="dash-topbar-right">
-            <button className="dash-icon-btn" id="btn-notifications" aria-label="Notifications">
+            {/* Notifications bell with badge */}
+            <button className="dash-icon-btn" id="btn-notifications" aria-label="Notifications" style={{ position: 'relative' }}>
               <Bell size={18} />
+              {unreadCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: 2, right: 2,
+                  background: '#ef4444', color: '#fff',
+                  borderRadius: '999px', fontSize: '10px',
+                  minWidth: 16, height: 16,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '0 3px', lineHeight: 1,
+                }}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </button>
 
             {/* Profile dropdown */}
@@ -197,7 +142,7 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Actions: Set Status / Mute Notifications */}
+                  {/* Actions */}
                   <div className="dash-dropdown-actions">
                     <div className="dash-status-input-container">
                       <Smile size={14} className="dash-status-icon" />
@@ -214,7 +159,6 @@ export default function Dashboard() {
 
                   <div className="dash-dropdown-divider" />
 
-                  {/* Scrollable menu items */}
                   <div className="dash-dropdown-items-scroller">
                     <button className="dash-dropdown-item" onClick={() => { setDropdownOpen(false); navigate('/settings?tab=profile'); }} role="menuitem" type="button">
                       <Settings size={15} />
@@ -254,7 +198,7 @@ export default function Dashboard() {
                       { icon: <LayoutDashboard size={14} />, label: 'Create Whiteboard', pin: false },
                       { icon: <Users size={14} />, label: 'View People', pin: false },
                       { icon: <LayoutDashboard size={14} />, label: 'Create Dashboard', pin: true },
-                      { icon: <Sparkles size={14} />, label: 'AI Notetaker', pin: false }
+                      { icon: <Sparkles size={14} />, label: 'AI Notetaker', pin: false },
                     ].map((tool, idx) => (
                       <button className="dash-dropdown-item dash-dropdown-item--tool" key={idx} role="menuitem" type="button">
                         <div className="dash-tool-left">
@@ -266,12 +210,12 @@ export default function Dashboard() {
                     ))}
 
                     <div className="dash-dropdown-divider" />
-                    
+
                     <button className="dash-dropdown-item" onClick={() => { setDropdownOpen(false); navigate('/settings?tab=trash'); }} role="menuitem" type="button">
                       <Trash2 size={15} />
                       <span>Trash</span>
                     </button>
-                    
+
                     <button
                       className="dash-dropdown-item dash-dropdown-item--danger"
                       id="btn-signout"
@@ -291,13 +235,6 @@ export default function Dashboard() {
 
         {/* Body */}
         <div className="dash-body">
-          {error && (
-            <div className="dash-error-banner">
-              <Shield size={16} />
-              <span>{error}</span>
-            </div>
-          )}
-
           {/* Welcome section */}
           <div className="dash-welcome">
             <div className="dash-welcome-text">
@@ -306,9 +243,20 @@ export default function Dashboard() {
                 You're successfully authenticated. Here's an overview of your workspace.
               </p>
             </div>
-            <div className="dash-welcome-badge">
-              <Zap size={14} />
-              <span>JWT Secured</span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {/* Role badge */}
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                padding: '4px 12px', borderRadius: '999px', fontSize: 12, fontWeight: 600,
+                color: roleMeta.color, background: roleMeta.bg, border: `1px solid ${roleMeta.color}33`,
+              }}>
+                <Shield size={12} />
+                {roleMeta.label}
+              </span>
+              <div className="dash-welcome-badge">
+                <Zap size={14} />
+                <span>JWT Secured</span>
+              </div>
             </div>
           </div>
 
@@ -328,7 +276,7 @@ export default function Dashboard() {
           </div>
 
           {/* Profile info card */}
-          {profile && (
+          {user && (
             <div className="dash-profile-card">
               <div className="dash-profile-card-header">
                 <h3 className="dash-section-title">Account Information</h3>
@@ -344,7 +292,7 @@ export default function Dashboard() {
                   </div>
                   <div className="dash-profile-row-info">
                     <span className="dash-profile-row-label">Email Address</span>
-                    <span className="dash-profile-row-value">{profile.email}</span>
+                    <span className="dash-profile-row-value">{user.email}</span>
                   </div>
                 </div>
 
@@ -355,21 +303,33 @@ export default function Dashboard() {
                   <div className="dash-profile-row-info">
                     <span className="dash-profile-row-label">User ID</span>
                     <span className="dash-profile-row-value dash-mono">
-                      #{profile.id || profile.userId || 'N/A'}
+                      #{user.id ?? 'N/A'}
                     </span>
                   </div>
                 </div>
 
                 <div className="dash-profile-row">
-                  <div className="dash-profile-row-icon" style={{ color: '#10b981', background: 'rgba(16,185,129,0.08)' }}>
+                  <div className="dash-profile-row-icon" style={{ color: roleMeta.color, background: roleMeta.bg }}>
                     <Shield size={16} />
+                  </div>
+                  <div className="dash-profile-row-info">
+                    <span className="dash-profile-row-label">Role</span>
+                    <span className="dash-profile-row-value" style={{ color: roleMeta.color, fontWeight: 600 }}>
+                      {roleMeta.label}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="dash-profile-row">
+                  <div className="dash-profile-row-icon" style={{ color: '#6366f1', background: 'rgba(99,102,241,0.08)' }}>
+                    <Zap size={16} />
                   </div>
                   <div className="dash-profile-row-info">
                     <span className="dash-profile-row-label">Auth Method</span>
                     <span className="dash-profile-row-value">
-                      {profile.provider === 'google'
+                      {user.provider === 'google'
                         ? '🔵 Google OAuth'
-                        : profile.provider === 'github'
+                        : user.provider === 'github'
                         ? '⚫ GitHub OAuth'
                         : '🔑 Email / Password (JWT)'}
                     </span>

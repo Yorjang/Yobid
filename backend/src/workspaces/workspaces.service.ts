@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role, WorkspaceRole } from '@prisma/client';
@@ -154,11 +155,14 @@ export class WorkspacesService {
   /** Add a member to the workspace */
   async addMember(
     workspaceId: number,
-    targetUserId: number,
+    targetUserIdOrEmail: number | string,
     role: WorkspaceRole = WorkspaceRole.MEMBER,
     requesterId: number,
     requesterRole: Role,
   ) {
+    if (targetUserIdOrEmail === undefined || targetUserIdOrEmail === null) {
+      throw new BadRequestException('userId or email is required');
+    }
     const workspace = await this.prisma.workspace.findUnique({ where: { id: workspaceId } });
     if (!workspace || !workspace.isActive) {
       throw new NotFoundException(`Workspace ${workspaceId} not found`);
@@ -178,17 +182,24 @@ export class WorkspacesService {
     }
 
     // Check if target user exists
-    const targetUser = await this.prisma.user.findUnique({ where: { id: targetUserId } });
-    if (!targetUser) throw new NotFoundException(`User ${targetUserId} not found`);
+    let targetUser;
+    if (typeof targetUserIdOrEmail === 'number') {
+      targetUser = await this.prisma.user.findUnique({ where: { id: targetUserIdOrEmail } });
+    } else {
+      targetUser = await this.prisma.user.findUnique({ where: { email: targetUserIdOrEmail } });
+    }
+    if (!targetUser) {
+      throw new NotFoundException(`User with ID/email "${targetUserIdOrEmail}" not found`);
+    }
 
     // Check for duplicate membership
     const existing = await this.prisma.workspaceMember.findUnique({
-      where: { workspaceId_userId: { workspaceId, userId: targetUserId } },
+      where: { workspaceId_userId: { workspaceId, userId: targetUser.id } },
     });
     if (existing) throw new ConflictException('User is already a member of this workspace');
 
     return this.prisma.workspaceMember.create({
-      data: { workspaceId, userId: targetUserId, role },
+      data: { workspaceId, userId: targetUser.id, role },
       include: {
         user: { select: { id: true, name: true, email: true, avatar: true } },
       },

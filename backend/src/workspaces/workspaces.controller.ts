@@ -81,12 +81,14 @@ export class WorkspacesController {
   @Post(':id/members')
   addMember(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { userId: number; role?: WorkspaceRole },
+    @Body() body: { userId?: any; email?: string; role?: WorkspaceRole },
     @CurrentUser() user: any,
   ) {
+    const target = body.userId !== undefined ? body.userId : body.email;
+    const parsedTarget = (typeof target === 'string' && /^\d+$/.test(target)) ? Number(target) : target;
     return this.workspacesService.addMember(
       id,
-      body.userId,
+      parsedTarget,
       body.role,
       user.userId,
       user.role,
