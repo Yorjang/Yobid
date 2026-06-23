@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   LogOut, Mail, Shield, Key, Award, Loader2,
@@ -12,6 +12,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { notificationsApi } from '../services/api';
 import Sidebar from '../components/Sidebar';
+import PlannerBoard from '../components/PlannerBoard';
 
 /** Map backend role → display label + color */
 const ROLE_META = {
@@ -24,6 +25,16 @@ const ROLE_META = {
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [activePath, setActivePath] = useState({ spaceName: 'Home', tabName: '' });
+
+  const handleStateChange = useCallback((spaceName, tabName) => {
+    setActivePath(prev => {
+      if (prev.spaceName === spaceName && prev.tabName === tabName) {
+        return prev;
+      }
+      return { spaceName, tabName };
+    });
+  }, []);
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     const saved = localStorage.getItem('sidebarOpen');
     return saved !== null ? JSON.parse(saved) : true;
@@ -92,7 +103,37 @@ export default function Dashboard() {
         {/* Top bar */}
         <header className="dash-topbar">
           <div className="dash-topbar-left">
-            <h2 className="dash-page-title">Dashboard</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h2 className="dash-page-title" style={{ color: '#94a3b8', fontWeight: 500 }}>Dashboard</h2>
+              {activePath.spaceName && (
+                <>
+                  <span style={{ color: '#cbd5e1', fontWeight: 500 }}>/</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {activePath.spaceName !== 'Home' && (
+                      <span style={{
+                        width: '18px', height: '18px',
+                        backgroundColor: '#7c3aed', color: 'white',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        borderRadius: '4px', fontWeight: 'bold', fontSize: '9px'
+                      }}>
+                        {activePath.spaceName.charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                    <span className="dash-page-title" style={{ color: '#1f2937', fontWeight: 700 }}>
+                      {activePath.spaceName}
+                    </span>
+                  </div>
+                </>
+              )}
+              {activePath.spaceName && activePath.spaceName !== 'Home' && activePath.tabName && (
+                <>
+                  <span style={{ color: '#cbd5e1', fontWeight: 500 }}>/</span>
+                  <span style={{ color: '#6b7280', fontSize: '0.875rem', fontWeight: 600, textTransform: 'capitalize' }}>
+                    {activePath.tabName}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
           <div className="dash-topbar-right">
             {/* Notifications bell with badge */}
@@ -234,122 +275,9 @@ export default function Dashboard() {
         </header>
 
         {/* Body */}
-        <div className="dash-body">
-          {/* Welcome section */}
-          <div className="dash-welcome">
-            <div className="dash-welcome-text">
-              <h1 className="dash-welcome-title">{greeting}, {userDisplayName}! 👋</h1>
-              <p className="dash-welcome-subtitle">
-                You're successfully authenticated. Here's an overview of your workspace.
-              </p>
-            </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              {/* Role badge */}
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                padding: '4px 12px', borderRadius: '999px', fontSize: 12, fontWeight: 600,
-                color: roleMeta.color, background: roleMeta.bg, border: `1px solid ${roleMeta.color}33`,
-              }}>
-                <Shield size={12} />
-                {roleMeta.label}
-              </span>
-              <div className="dash-welcome-badge">
-                <Zap size={14} />
-                <span>JWT Secured</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Stats grid */}
-          <div className="dash-stats-grid">
-            {stats.map((s, i) => (
-              <div className="dash-stat-card" key={i}>
-                <div className="dash-stat-icon" style={{ color: s.color, background: s.bg }}>
-                  {s.icon}
-                </div>
-                <div className="dash-stat-info">
-                  <span className="dash-stat-label">{s.label}</span>
-                  <span className="dash-stat-value">{s.value}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Profile info card */}
-          {user && (
-            <div className="dash-profile-card">
-              <div className="dash-profile-card-header">
-                <h3 className="dash-section-title">Account Information</h3>
-                <span className="dash-verified-badge">
-                  <Award size={13} />
-                  Verified
-                </span>
-              </div>
-              <div className="dash-profile-rows">
-                <div className="dash-profile-row">
-                  <div className="dash-profile-row-icon" style={{ color: '#7c3aed', background: 'rgba(124,58,237,0.08)' }}>
-                    <Mail size={16} />
-                  </div>
-                  <div className="dash-profile-row-info">
-                    <span className="dash-profile-row-label">Email Address</span>
-                    <span className="dash-profile-row-value">{user.email}</span>
-                  </div>
-                </div>
-
-                <div className="dash-profile-row">
-                  <div className="dash-profile-row-icon" style={{ color: '#06b6d4', background: 'rgba(6,182,212,0.08)' }}>
-                    <Key size={16} />
-                  </div>
-                  <div className="dash-profile-row-info">
-                    <span className="dash-profile-row-label">User ID</span>
-                    <span className="dash-profile-row-value dash-mono">
-                      #{user.id ?? 'N/A'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="dash-profile-row">
-                  <div className="dash-profile-row-icon" style={{ color: roleMeta.color, background: roleMeta.bg }}>
-                    <Shield size={16} />
-                  </div>
-                  <div className="dash-profile-row-info">
-                    <span className="dash-profile-row-label">Role</span>
-                    <span className="dash-profile-row-value" style={{ color: roleMeta.color, fontWeight: 600 }}>
-                      {roleMeta.label}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="dash-profile-row">
-                  <div className="dash-profile-row-icon" style={{ color: '#6366f1', background: 'rgba(99,102,241,0.08)' }}>
-                    <Zap size={16} />
-                  </div>
-                  <div className="dash-profile-row-info">
-                    <span className="dash-profile-row-label">Auth Method</span>
-                    <span className="dash-profile-row-value">
-                      {user.provider === 'google'
-                        ? '🔵 Google OAuth'
-                        : user.provider === 'github'
-                        ? '⚫ GitHub OAuth'
-                        : '🔑 Email / Password (JWT)'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="dash-profile-row">
-                  <div className="dash-profile-row-icon" style={{ color: '#f59e0b', background: 'rgba(245,158,11,0.08)' }}>
-                    <Clock size={16} />
-                  </div>
-                  <div className="dash-profile-row-info">
-                    <span className="dash-profile-row-label">Session</span>
-                    <span className="dash-profile-row-value" style={{ color: '#10b981' }}>
-                      Active &amp; Secure
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+        <div className="dash-body dash-body--planner">
+          {/* Planner board replacing account info */}
+          <PlannerBoard onStateChange={handleStateChange} />
         </div>
       </div>
     </div>

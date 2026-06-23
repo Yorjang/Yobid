@@ -1303,7 +1303,8 @@ body {
 
 .dash-page {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: #f3f4f6;
   font-family: 'Inter', 'Outfit', sans-serif;
   color: #111827;
@@ -1467,6 +1468,8 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  height: 100vh;
+  overflow: hidden;
 }
 
 /* ─── Top bar ─── */
@@ -1556,8 +1559,16 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1.75rem;
-  max-width: 960px;
+  max-width: 100%;
   width: 100%;
+  overflow-y: auto;
+}
+
+.dash-body--planner {
+  padding: 0 !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  height: 100% !important;
 }
 
 .dash-error-banner {
@@ -2654,4 +2665,348 @@ body {
 .set-empty-state p {
   font-size: 0.9rem;
 }
+
+/* ============================================
+   PLANNER BOARD CUSTOM SPACIOUS STYLES
+   ============================================ */
+.planner-outer {
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 2rem;
+  overflow: hidden;
+  width: 100%;
+}
+.planner-header {
+  border-bottom: 1.5px solid #e5e7eb;
+  padding: 1.75rem 2rem 1.25rem 2rem !important;
+  background: #fff;
+}
+.planner-workspace-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem !important;
+}
+.planner-tab-row {
+  display: flex;
+  align-items: center;
+  gap: 1.75rem !important;
+  margin-top: 0.5rem;
+}
+.planner-tab-btn {
+  padding-bottom: 0.75rem !important;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  color: #6b7280;
+  transition: color 0.2s, border-color 0.2s;
+  font-size: 0.85rem;
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+}
+.planner-tab-btn:hover {
+  color: #111827;
+}
+.planner-tab-btn--active {
+  border-bottom-color: #7c3aed !important;
+  color: #7c3aed !important;
+}
+.planner-content-area {
+  padding: 2rem !important;
+  background-color: #f9fafb;
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.planner-list-group {
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 1.75rem !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+.planner-list-header {
+  padding: 1rem 1.5rem !important;
+  background: #f8fafc;
+  border-bottom: 1.5px solid #e2e8f0;
+}
+.planner-list-row {
+  padding: 1.25rem 1.5rem !important; /* Spacious list row padding! */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  background: #fff;
+}
+.planner-list-row:hover {
+  background-color: #f8fafc;
+}
+.planner-kanban-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem !important;
+}
+.planner-kanban-col {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.5rem !important;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem !important;
+  min-height: 480px;
+}
+.planner-kanban-card {
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 1.25rem !important;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+}
+.planner-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px !important; /* Clear gaps between cells */
+  background: #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.planner-calendar-cell {
+  background: #fff;
+  padding: 0.75rem !important;
+  min-height: 115px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.planner-modal-backdrop {
+  background-color: rgba(0,0,0,0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  padding: 1.5rem;
+}
+.planner-modal-card {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 480px;
+  padding: 2rem !important; /* Spacious modal! */
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem !important; /* Vertical gap between fields */
+}
+.planner-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem !important; /* Space between label and input */
+  text-align: left;
+}
+.planner-modal-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.25rem;
+}
+.planner-modal-input {
+  width: 100%;
+  padding: 0.75rem 1rem !important; /* Spacious input padding! */
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  outline: none;
+  font-size: 0.875rem;
+  box-sizing: border-box;
+  background-color: #fff;
+  color: #0f172a;
+}
+.planner-modal-input:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+.planner-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1rem !important;
+  padding-top: 1.25rem;
+  border-top: 1px solid #f1f5f9;
+  margin-top: 0.5rem;
+}
+
+/* ─── Planner Workspace Layout (ClickUp Style Sidebar) ─── */
+.planner-layout {
+  display: flex;
+  flex-direction: row;
+  background: #fff;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.planner-sidebar {
+  width: 240px;
+  background-color: #f8fafc;
+  border-right: 1.5px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem 1.25rem !important;
+  flex-shrink: 0;
+  text-align: left;
+  height: 100%;
+  overflow-y: auto;
+}
+.planner-sidebar-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 1rem;
+}
+.planner-space-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem !important;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  margin-bottom: 0.25rem;
+}
+.planner-space-item:hover {
+  background-color: #f1f5f9;
+}
+.planner-space-item--active {
+  background-color: #e2e8f0 !important;
+  font-weight: 600;
+}
+.planner-space-link-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: #334155;
+}
+.planner-space-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 800;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+.planner-space-menu-btn {
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background-color 0.15s;
+  color: #94a3b8;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+}
+.planner-space-menu-btn:hover {
+  color: #7c3aed !important;
+  background-color: #e2e8f0;
+}
+.planner-space-menu-btn--open {
+  opacity: 1 !important;
+  color: #7c3aed !important;
+  background-color: #e2e8f0 !important;
+}
+.planner-space-item:hover .planner-space-menu-btn {
+  opacity: 1;
+}
+.planner-space-dropdown {
+  position: absolute;
+  top: 35px;
+  right: 10px;
+  width: 200px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  z-index: 1000;
+  padding: 6px 0;
+  display: flex;
+  flex-direction: column;
+}
+.planner-space-dropdown-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  color: #334155;
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: background 0.1s;
+  font-family: var(--font-sans);
+}
+.planner-space-dropdown-item:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+.planner-space-dropdown-item--danger {
+  color: #ef4444;
+}
+.planner-space-dropdown-item--danger:hover {
+  background-color: #fef2f2;
+  color: #dc2626 !important;
+}
+.planner-space-dropdown-divider {
+  height: 1px;
+  background-color: #e2e8f0;
+  margin: 6px 0;
+}
+.planner-space-dropdown-header {
+  padding: 4px 12px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.planner-main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+
 
