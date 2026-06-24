@@ -32,6 +32,7 @@ import {
   Star
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { workspacesApi, projectsApi, tasksApi } from '../services/api';
 
 // MOCK DATA INITIALIZATION
 const DEFAULT_SPACES = [
@@ -81,26 +82,18 @@ export default function PlannerBoard(props) {
 
   const [activeTab, setActiveTab] = useState('list'); // 'chat', 'list', 'board', 'calendar'
   
+  // Loading state
+  const [loading, setLoading] = useState(false);
+
+  // Workspaces state
+  const [workspaces, setWorkspaces] = useState([]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState(null);
+
   // Spaces state (ClickUp folders/spaces)
-  const [spaces, setSpaces] = useState(() => {
-    const saved = localStorage.getItem('yobid_spaces');
-    return saved ? JSON.parse(saved) : DEFAULT_SPACES;
-  });
-  const [activeSpaceId, setActiveSpaceId] = useState(() => {
-    const saved = localStorage.getItem('yobid_active_space');
-    return saved || 'home';
-  });
-
+  const [spaces, setSpaces] = useState([]);
+  const [activeSpaceId, setActiveSpaceId] = useState('home');
   const [activeMenuSpaceId, setActiveMenuSpaceId] = useState(null);
-
-  const [workspaceName, setWorkspaceName] = useState(() => {
-    const saved = localStorage.getItem('yobid_workspace_name');
-    return saved || `${userDisplayName}'s Workspace`;
-  });
-
-  useEffect(() => {
-    localStorage.setItem('yobid_workspace_name', workspaceName);
-  }, [workspaceName]);
+  const [workspaceName, setWorkspaceName] = useState(`${userDisplayName}'s Workspace`);
 
   // Custom Modal States
   const [showDeleteSpaceModal, setShowDeleteSpaceModal] = useState(false);
@@ -116,16 +109,119 @@ export default function PlannerBoard(props) {
   const [showDeleteTaskModal, setShowDeleteTaskModal] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState(null);
 
+  // Fetch Workspaces on mount
+  useEffect(() => {
+    const fetchWorkspaces = async () => {
+      try {
+        setLoading(true);
+        const wsList = await workspacesApi.list();
+        const activeWs = wsList.filter(w => !w.isDeleted);
+        if (activeWs.length > 0) {
+          setWorkspaces(activeWs);
+          const savedWsId = localStorage.getItem('yobid_active_workspace_id');
+          const workspaceToSelect = activeWs.find(w => w.id === Number(savedWsId)) || activeWs[0];
+          setActiveWorkspaceId(workspaceToSelect.id);
+          setWorkspaceName(workspaceToSelect.name);
+          localStorage.setItem('yobid_active_workspace_id', workspaceToSelect.id);
+        } else {
+          // Auto create a default workspace if none exists
+          const newWs = await workspacesApi.create({
+            name: `${userDisplayName}'s Workspace`,
+            slug: `workspace-${Date.now()}`
+          });
+          setWorkspaces([newWs]);
+          setActiveWorkspaceId(newWs.id);
+          setWorkspaceName(newWs.name);
+          localStorage.setItem('yobid_active_workspace_id', newWs.id);
+        }
+      } catch (err) {
+        console.error('Error fetching workspaces:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchWorkspaces();
+  }, [userDisplayName]);
+
+  // Fetch Projects (Spaces) when activeWorkspaceId changes
+  useEffect(() => {
+    const fetchProjects = async () => {
+      if (!activeWorkspaceId) return;
+      try {
+        setLoading(true);
+        const projList = await projectsApi.list(activeWorkspaceId);
+        const activeProjs = projList.filter(p => !p.isDeleted);
+        const colors = ['#7c3aed', '#ff6b6b', '#10b981', '#3b82f6', '#f59e0b', '#ec4899'];
+        const mapped = activeProjs.map((p, idx) => ({
+          id: p.id,
+          name: p.name,
+          color: colors[idx % colors.length]
+        }));
+        setSpaces(mapped);
+
+        const savedSpaceId = localStorage.getItem('yobid_active_space') || 'home';
+        if (savedSpaceId !== 'home' && mapped.some(s => s.id === Number(savedSpaceId))) {
+          setActiveSpaceId(Number(savedSpaceId));
+        } else {
+          setActiveSpaceId('home');
+        }
+      } catch (err) {
+        console.error('Error fetching projects:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProjects();
+  }, [activeWorkspaceId]);
+
+  // Fetch Tasks when activeWorkspaceId, spaces, or activeSpaceId changes
+  const [tasks, setTasks] = useState([]);
+  useEffect(() => {
+    const fetchTasks = async () => {
+      if (!activeWorkspaceId) return;
+      try {
+        if (activeSpaceId === 'home') {
+          if (spaces.length === 0) {
+            setTasks([]);
+            return;
+          }
+          const promises = spaces.map(s => tasksApi.list({ projectId: s.id }));
+          const results = await Promise.all(promises);
+          const allTasks = results.flat().filter(t => !t.isDeleted).map(t => ({
+            ...t,
+            spaceId: t.projectId
+          }));
+          setTasks(allTasks);
+        } else {
+          const tList = await tasksApi.list({ projectId: activeSpaceId });
+          const activeTasks = tList.filter(t => !t.isDeleted).map(t => ({
+            ...t,
+            spaceId: t.projectId
+          }));
+          setTasks(activeTasks);
+        }
+      } catch (err) {
+        console.error('Error fetching tasks:', err);
+      }
+    };
+    fetchTasks();
+  }, [activeWorkspaceId, activeSpaceId, spaces]);
+
   const handleRenameWorkspace = () => {
     setTempWorkspaceName(workspaceName);
     setShowRenameWorkspaceModal(true);
   };
 
-  const confirmRenameWorkspace = (e) => {
+  const confirmRenameWorkspace = async (e) => {
     e.preventDefault();
-    if (tempWorkspaceName.trim()) {
+    if (!tempWorkspaceName.trim() || !activeWorkspaceId) return;
+    try {
+      await workspacesApi.update(activeWorkspaceId, { name: tempWorkspaceName.trim() });
       setWorkspaceName(tempWorkspaceName.trim());
+      setWorkspaces(workspaces.map(w => w.id === activeWorkspaceId ? { ...w, name: tempWorkspaceName.trim() } : w));
       setShowRenameWorkspaceModal(false);
+    } catch (err) {
+      alert(`Error renaming workspace: ${err.message}`);
     }
   };
 
@@ -160,23 +256,15 @@ export default function PlannerBoard(props) {
     const saved = localStorage.getItem('yobid_sprints');
     return saved ? JSON.parse(saved) : DEFAULT_SPRINTS;
   });
-  
-  const [tasks, setTasks] = useState(() => {
-    const saved = localStorage.getItem('yobid_tasks');
-    return saved ? JSON.parse(saved) : DEFAULT_TASKS;
-  });
 
   const [chatMessages, setChatMessages] = useState(() => {
     const saved = localStorage.getItem('yobid_chats');
     return saved ? JSON.parse(saved) : DEFAULT_CHAT;
   });
 
-  // Sync to localStorage
+  // Sync active space and non-API states to localStorage
   useEffect(() => {
-    localStorage.setItem('yobid_spaces', JSON.stringify(spaces));
-  }, [spaces]);
-  useEffect(() => {
-    localStorage.setItem('yobid_active_space', activeSpaceId);
+    localStorage.setItem('yobid_active_space', String(activeSpaceId));
   }, [activeSpaceId]);
   useEffect(() => {
     localStorage.setItem('yobid_epics', JSON.stringify(epics));
@@ -184,9 +272,6 @@ export default function PlannerBoard(props) {
   useEffect(() => {
     localStorage.setItem('yobid_sprints', JSON.stringify(sprints));
   }, [sprints]);
-  useEffect(() => {
-    localStorage.setItem('yobid_tasks', JSON.stringify(tasks));
-  }, [tasks]);
   useEffect(() => {
     localStorage.setItem('yobid_chats', JSON.stringify(chatMessages));
   }, [chatMessages]);
@@ -244,26 +329,38 @@ export default function PlannerBoard(props) {
     setShowTaskModal(true);
   };
 
-  const handleCreateTask = (e) => {
+  const handleCreateTask = async (e) => {
     e.preventDefault();
     if (!taskTitle.trim()) return;
 
-    const newTask = {
-      id: `task-${Date.now()}`,
-      title: taskTitle,
-      description: taskDesc,
-      priority: taskPriority,
-      status: taskStatus,
-      epicId: taskEpic,
-      sprintId: taskSprint,
-      deadline: taskDeadline,
-      spaceId: activeSpaceId // Assign to currently selected space!
-    };
+    const targetProjectId = activeSpaceId === 'home' ? (spaces[0]?.id) : activeSpaceId;
+    if (!targetProjectId) {
+      alert('Please select or create a Space before creating a task.');
+      return;
+    }
 
-    setTasks([...tasks, newTask]);
-    setShowTaskModal(false);
-    setTaskTitle('');
-    setTaskDesc('');
+    try {
+      const createdTask = await tasksApi.create({
+        title: taskTitle.trim(),
+        description: taskDesc.trim() || undefined,
+        priority: taskPriority,
+        status: taskStatus,
+        projectId: Number(targetProjectId),
+        deadline: taskDeadline ? new Date(taskDeadline).toISOString() : undefined,
+      });
+
+      const newTask = {
+        ...createdTask,
+        spaceId: createdTask.projectId
+      };
+
+      setTasks([...tasks, newTask]);
+      setShowTaskModal(false);
+      setTaskTitle('');
+      setTaskDesc('');
+    } catch (err) {
+      alert(`Error creating task: ${err.message}`);
+    }
   };
 
   const handleCreateEpic = (e) => {
@@ -300,21 +397,31 @@ export default function PlannerBoard(props) {
     setSprintName('');
   };
 
-  const handleCreateSpace = (e) => {
+  const handleCreateSpace = async (e) => {
     e.preventDefault();
-    if (!spaceName.trim()) return;
+    if (!spaceName.trim() || !activeWorkspaceId) return;
 
-    const newSpaceId = `space-${Date.now()}`;
-    const newSpace = {
-      id: newSpaceId,
-      name: spaceName,
-      color: spaceColor
-    };
+    try {
+      const newProj = await projectsApi.create({
+        name: spaceName.trim(),
+        workspaceId: activeWorkspaceId
+      });
+      const colors = ['#7c3aed', '#ff6b6b', '#10b981', '#3b82f6', '#f59e0b', '#ec4899'];
+      const nextColor = colors[spaces.length % colors.length];
+      const newSpace = {
+        id: newProj.id,
+        name: newProj.name,
+        color: nextColor
+      };
 
-    setSpaces([...spaces, newSpace]);
-    setActiveSpaceId(newSpaceId); // Switch to the new space immediately!
-    setShowSpaceModal(false);
-    setSpaceName('');
+      setSpaces([...spaces, newSpace]);
+      setActiveSpaceId(newProj.id);
+      localStorage.setItem('yobid_active_space', String(newProj.id));
+      setShowSpaceModal(false);
+      setSpaceName('');
+    } catch (err) {
+      alert(`Error creating space: ${err.message}`);
+    }
   };
 
   const handleDeleteSpace = (spaceId, spaceName, e) => {
@@ -326,16 +433,22 @@ export default function PlannerBoard(props) {
     }
   };
 
-  const confirmDeleteSpace = () => {
+  const confirmDeleteSpace = async () => {
     if (!spaceToDelete) return;
     const spaceId = spaceToDelete.id;
-    setSpaces(spaces.filter(s => s.id !== spaceId));
-    setTasks(tasks.filter(t => t.spaceId !== spaceId));
-    if (activeSpaceId === spaceId) {
-      setActiveSpaceId('home');
+    try {
+      await projectsApi.remove(spaceId);
+      setSpaces(spaces.filter(s => s.id !== spaceId));
+      setTasks(tasks.filter(t => t.spaceId !== spaceId));
+      if (activeSpaceId === spaceId) {
+        setActiveSpaceId('home');
+        localStorage.setItem('yobid_active_space', 'home');
+      }
+      setShowDeleteSpaceModal(false);
+      setSpaceToDelete(null);
+    } catch (err) {
+      alert(`Error deleting space: ${err.message}`);
     }
-    setShowDeleteSpaceModal(false);
-    setSpaceToDelete(null);
   };
 
   const handleRenameSpace = (spaceId, currentName) => {
@@ -347,12 +460,17 @@ export default function PlannerBoard(props) {
     }
   };
 
-  const confirmRenameSpace = (e) => {
+  const confirmRenameSpace = async (e) => {
     e.preventDefault();
     if (!spaceToRename || !tempSpaceName.trim()) return;
-    setSpaces(spaces.map(s => s.id === spaceToRename.id ? { ...s, name: tempSpaceName.trim() } : s));
-    setShowRenameSpaceModal(false);
-    setSpaceToRename(null);
+    try {
+      await projectsApi.update(spaceToRename.id, { name: tempSpaceName.trim() });
+      setSpaces(spaces.map(s => s.id === spaceToRename.id ? { ...s, name: tempSpaceName.trim() } : s));
+      setShowRenameSpaceModal(false);
+      setSpaceToRename(null);
+    } catch (err) {
+      alert(`Error renaming space: ${err.message}`);
+    }
   };
 
   const handleCycleSpaceColor = (spaceId, currentColor) => {
@@ -370,15 +488,25 @@ export default function PlannerBoard(props) {
     }
   };
 
-  const confirmDeleteTask = () => {
+  const confirmDeleteTask = async () => {
     if (!taskToDelete) return;
-    setTasks(tasks.filter(t => t.id !== taskToDelete.id));
-    setShowDeleteTaskModal(false);
-    setTaskToDelete(null);
+    try {
+      await tasksApi.remove(taskToDelete.id);
+      setTasks(tasks.filter(t => t.id !== taskToDelete.id));
+      setShowDeleteTaskModal(false);
+      setTaskToDelete(null);
+    } catch (err) {
+      alert(`Error deleting task: ${err.message}`);
+    }
   };
 
-  const handleUpdateTaskStatus = (taskId, newStatus) => {
-    setTasks(tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+  const handleUpdateTaskStatus = async (taskId, newStatus) => {
+    try {
+      setTasks(tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+      await tasksApi.update(taskId, { status: newStatus });
+    } catch (err) {
+      console.error('Error updating task status:', err);
+    }
   };
 
   const handleSendChatMessage = (e) => {

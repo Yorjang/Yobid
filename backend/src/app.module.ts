@@ -9,6 +9,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
 import { ProjectsModule } from './projects/projects.module';
 import { TasksModule } from './tasks/tasks.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { TrashModule } from './trash/trash.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     ProjectsModule,
     TasksModule,
     NotificationsModule,
+    TrashModule,
   ],
   controllers: [AppController],
   providers: [AppService],

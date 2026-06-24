@@ -60,7 +60,7 @@ export class WorkspacesService {
     // ADMIN sees everything
     if (userRole === Role.ADMIN) {
       return this.prisma.workspace.findMany({
-        where: { isActive: true },
+        where: { isActive: true, isDeleted: false },
         include: {
           owner: { select: { id: true, name: true, email: true, avatar: true } },
           _count: { select: { members: true, projects: true } },
@@ -73,6 +73,7 @@ export class WorkspacesService {
     return this.prisma.workspace.findMany({
       where: {
         isActive: true,
+        isDeleted: false,
         members: { some: { userId } },
       },
       include: {
@@ -95,13 +96,13 @@ export class WorkspacesService {
           },
         },
         projects: {
-          where: { isActive: true },
+          where: { isActive: true, isDeleted: false },
           select: { id: true, name: true, description: true, createdAt: true },
         },
       },
     });
 
-    if (!workspace || !workspace.isActive) {
+    if (!workspace || !workspace.isActive || workspace.isDeleted) {
       throw new NotFoundException(`Workspace ${id} not found`);
     }
 
@@ -117,7 +118,7 @@ export class WorkspacesService {
     userRole: Role,
   ) {
     const workspace = await this.prisma.workspace.findUnique({ where: { id } });
-    if (!workspace || !workspace.isActive) {
+    if (!workspace || !workspace.isActive || workspace.isDeleted) {
       throw new NotFoundException(`Workspace ${id} not found`);
     }
 
@@ -137,7 +138,7 @@ export class WorkspacesService {
   /** Soft-delete workspace (owner or ADMIN) */
   async remove(id: number, userId: number, userRole: Role) {
     const workspace = await this.prisma.workspace.findUnique({ where: { id } });
-    if (!workspace || !workspace.isActive) {
+    if (!workspace || !workspace.isActive || workspace.isDeleted) {
       throw new NotFoundException(`Workspace ${id} not found`);
     }
 
@@ -147,8 +148,8 @@ export class WorkspacesService {
 
     return this.prisma.workspace.update({
       where: { id },
-      data: { isActive: false },
-      select: { id: true, name: true, isActive: true },
+      data: { isActive: false, isDeleted: true, deletedAt: new Date() },
+      select: { id: true, name: true, isActive: true, isDeleted: true },
     });
   }
 
@@ -164,7 +165,7 @@ export class WorkspacesService {
       throw new BadRequestException('userId or email is required');
     }
     const workspace = await this.prisma.workspace.findUnique({ where: { id: workspaceId } });
-    if (!workspace || !workspace.isActive) {
+    if (!workspace || !workspace.isActive || workspace.isDeleted) {
       throw new NotFoundException(`Workspace ${workspaceId} not found`);
     }
 
@@ -214,7 +215,7 @@ export class WorkspacesService {
     requesterRole: Role,
   ) {
     const workspace = await this.prisma.workspace.findUnique({ where: { id: workspaceId } });
-    if (!workspace || !workspace.isActive) {
+    if (!workspace || !workspace.isActive || workspace.isDeleted) {
       throw new NotFoundException(`Workspace ${workspaceId} not found`);
     }
 

@@ -47,7 +47,7 @@ export class ProjectsService {
   ) {
     // Check workspace exists
     const workspace = await this.prisma.workspace.findUnique({
-      where: { id: data.workspaceId, isActive: true },
+      where: { id: data.workspaceId, isActive: true, isDeleted: false },
     });
     if (!workspace) {
       throw new NotFoundException(`Workspace ${data.workspaceId} not found`);
@@ -87,7 +87,7 @@ export class ProjectsService {
   async findAll(workspaceId: number, userId: number, userRole: Role) {
     await this.assertWorkspaceAccess(workspaceId, userId, userRole);
 
-    const where: any = { workspaceId, isActive: true };
+    const where: any = { workspaceId, isActive: true, isDeleted: false, workspace: { isDeleted: false } };
 
     // MEMBERs can only see projects they are part of
     if (userRole === Role.MEMBER) {
@@ -113,14 +113,14 @@ export class ProjectsService {
     const project = await this.prisma.project.findUnique({
       where: { id },
       include: {
-        workspace: { select: { id: true, name: true } },
+        workspace: { select: { id: true, name: true, isDeleted: true } },
         members: {
           include: {
             user: { select: { id: true, name: true, email: true, avatar: true, role: true } },
           },
         },
         tasks: {
-          where: { },
+          where: { isDeleted: false },
           select: {
             id: true,
             title: true,
@@ -134,7 +134,7 @@ export class ProjectsService {
       },
     });
 
-    if (!project || !project.isActive) {
+    if (!project || !project.isActive || project.isDeleted || project.workspace.isDeleted) {
       throw new NotFoundException(`Project ${id} not found`);
     }
 
@@ -157,7 +157,7 @@ export class ProjectsService {
     userRole: Role,
   ) {
     const project = await this.prisma.project.findUnique({ where: { id } });
-    if (!project || !project.isActive) {
+    if (!project || !project.isActive || project.isDeleted) {
       throw new NotFoundException(`Project ${id} not found`);
     }
 
@@ -179,7 +179,7 @@ export class ProjectsService {
   /** Soft-delete project */
   async remove(id: number, userId: number, userRole: Role) {
     const project = await this.prisma.project.findUnique({ where: { id } });
-    if (!project || !project.isActive) {
+    if (!project || !project.isActive || project.isDeleted) {
       throw new NotFoundException(`Project ${id} not found`);
     }
 
@@ -187,8 +187,8 @@ export class ProjectsService {
 
     return this.prisma.project.update({
       where: { id },
-      data: { isActive: false },
-      select: { id: true, name: true, isActive: true },
+      data: { isActive: false, isDeleted: true, deletedAt: new Date() },
+      select: { id: true, name: true, isActive: true, isDeleted: true },
     });
   }
 
@@ -201,7 +201,7 @@ export class ProjectsService {
     requesterRole: Role,
   ) {
     const project = await this.prisma.project.findUnique({ where: { id: projectId } });
-    if (!project || !project.isActive) {
+    if (!project || !project.isActive || project.isDeleted) {
       throw new NotFoundException(`Project ${projectId} not found`);
     }
 
@@ -231,7 +231,7 @@ export class ProjectsService {
     requesterRole: Role,
   ) {
     const project = await this.prisma.project.findUnique({ where: { id: projectId } });
-    if (!project || !project.isActive) {
+    if (!project || !project.isActive || project.isDeleted) {
       throw new NotFoundException(`Project ${projectId} not found`);
     }
 
@@ -252,7 +252,7 @@ export class ProjectsService {
   /** Get project statistics */
   async getStats(projectId: number, userId: number, userRole: Role) {
     const project = await this.prisma.project.findUnique({ where: { id: projectId } });
-    if (!project || !project.isActive) {
+    if (!project || !project.isActive || project.isDeleted) {
       throw new NotFoundException(`Project ${projectId} not found`);
     }
 

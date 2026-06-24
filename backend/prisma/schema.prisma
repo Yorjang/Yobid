@@ -79,6 +79,8 @@ model Workspace {
   description String?
   slug        String   @unique
   isActive    Boolean  @default(true)
+  isDeleted   Boolean  @default(false)
+  deletedAt   DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -108,6 +110,8 @@ model Project {
   name        String
   description String?
   isActive    Boolean  @default(true)
+  isDeleted   Boolean  @default(false)
+  deletedAt   DateTime?
   startDate   DateTime?
   endDate     DateTime?
   createdAt   DateTime @default(now())
@@ -143,6 +147,8 @@ model Task {
   priority    Priority   @default(MEDIUM)
   deadline    DateTime?
   position    Int        @default(0)
+  isDeleted   Boolean    @default(false)
+  deletedAt   DateTime?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 

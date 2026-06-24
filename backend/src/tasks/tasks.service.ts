@@ -50,11 +50,16 @@ export class TasksService {
     userId: number,
     userRole: Role,
   ) {
+    const project = await this.prisma.project.findUnique({
+      where: { id: data.projectId, isDeleted: false, workspace: { isDeleted: false } },
+    });
+    if (!project) throw new NotFoundException(`Project ${data.projectId} not found`);
+
     await this.assertProjectManager(data.projectId, userId, userRole);
 
     // Get max position for the status column
     const maxPos = await this.prisma.task.aggregate({
-      where: { projectId: data.projectId, status: data.status ?? TaskStatus.TODO },
+      where: { projectId: data.projectId, status: data.status ?? TaskStatus.TODO, isDeleted: false },
       _max: { position: true },
     });
 
@@ -100,7 +105,7 @@ export class TasksService {
   ) {
     await this.assertProjectAccess(projectId, userId, userRole);
 
-    const where: any = { projectId };
+    const where: any = { projectId, isDeleted: false };
     if (filters?.status) where.status = filters.status;
     if (filters?.assigneeId) where.assigneeId = filters.assigneeId;
     if (filters?.priority) where.priority = filters.priority;
@@ -121,7 +126,7 @@ export class TasksService {
     const task = await this.prisma.task.findUnique({
       where: { id },
       include: {
-        project: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true, isDeleted: true, workspace: { select: { id: true, name: true, isDeleted: true } } } },
         assignee: { select: { id: true, name: true, email: true, avatar: true } },
         creator: { select: { id: true, name: true, email: true } },
         subtasks: {
@@ -139,7 +144,9 @@ export class TasksService {
       },
     });
 
-    if (!task) throw new NotFoundException(`Task ${id} not found`);
+    if (!task || task.isDeleted || task.project.isDeleted || task.project.workspace.isDeleted) {
+      throw new NotFoundException(`Task ${id} not found`);
+    }
 
     await this.assertProjectAccess(task.projectId, userId, userRole);
 
@@ -161,8 +168,13 @@ export class TasksService {
     userId: number,
     userRole: Role,
   ) {
-    const task = await this.prisma.task.findUnique({ where: { id } });
-    if (!task) throw new NotFoundException(`Task ${id} not found`);
+    const task = await this.prisma.task.findUnique({
+      where: { id },
+      include: { project: { select: { isDeleted: true, workspace: { select: { isDeleted: true } } } } }
+    });
+    if (!task || task.isDeleted || task.project.isDeleted || task.project.workspace.isDeleted) {
+      throw new NotFoundException(`Task ${id} not found`);
+    }
 
     // Check if user is a project manager
     const isManager =
@@ -219,12 +231,20 @@ export class TasksService {
 
   /** Delete a task */
   async remove(id: number, userId: number, userRole: Role) {
-    const task = await this.prisma.task.findUnique({ where: { id } });
-    if (!task) throw new NotFoundException(`Task ${id} not found`);
+    const task = await this.prisma.task.findUnique({
+      where: { id },
+      include: { project: { select: { isDeleted: true, workspace: { select: { isDeleted: true } } } } }
+    });
+    if (!task || task.isDeleted || task.project.isDeleted || task.project.workspace.isDeleted) {
+      throw new NotFoundException(`Task ${id} not found`);
+    }
 
     await this.assertProjectManager(task.projectId, userId, userRole);
 
-    await this.prisma.task.delete({ where: { id } });
+    await this.prisma.task.update({
+      where: { id },
+      data: { isDeleted: true, deletedAt: new Date() },
+    });
     return { message: 'Task deleted successfully' };
   }
 

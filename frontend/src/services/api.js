@@ -231,3 +231,19 @@ export const notificationsApi = {
   /** DELETE /notifications/clear-read */
   clearRead: () => request('/notifications/clear-read', { method: 'DELETE' }),
 };
+
+// ─── Trash ───────────────────────────────────────────────────────────────────
+
+export const trashApi = {
+  /** GET /trash */
+  list: () => request('/trash'),
+
+  /** POST /trash/restore/:type/:id */
+  restore: (type, id) =>
+    request(`/trash/restore/${type}/${id}`, { method: 'POST' }),
+
+  /** DELETE /trash/permanent/:type/:id */
+  permanentDelete: (type, id) =>
+    request(`/trash/permanent/${type}/${id}`, { method: 'DELETE' }),
+};
+
