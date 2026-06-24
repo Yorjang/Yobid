@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { GoogleStrategy } from './google.strategy';
 import { GithubStrategy } from './github.strategy';
+import { MailService } from './mail.service';
 
 @Module({
   imports: [
@@ -22,7 +23,7 @@ import { GithubStrategy } from './github.strategy';
       }),
     }),
   ],
-  providers: [AuthService, JwtStrategy, GoogleStrategy, GithubStrategy],
+  providers: [AuthService, JwtStrategy, GoogleStrategy, GithubStrategy, MailService],
   controllers: [AuthController],
   exports: [AuthService],
 })

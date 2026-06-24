@@ -56,9 +56,11 @@ model User {
   providerId String?  // OAuth provider user ID
   role       Role     @default(MEMBER)
   avatar     String?
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  isActive     Boolean  @default(true)
+  otpCode      String?
+  otpExpiresAt DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relations
   ownedWorkspaces    Workspace[]       @relation("WorkspaceOwner")

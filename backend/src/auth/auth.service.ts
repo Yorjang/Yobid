@@ -1,14 +1,17 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { MailService } from './mail.service';
+import * as dns from 'dns';
 
 @Injectable()
 export class AuthService {
   constructor(
     private jwtService: JwtService,
     private prisma: PrismaService,
+    private mailService: MailService,
   ) {}
 
   async validateUser(email: string, pass: string): Promise<any> {
@@ -67,6 +70,26 @@ export class AuthService {
     };
   }
 
+  async checkIsGoogleEmail(email: string): Promise<boolean> {
+    const emailLower = email.toLowerCase();
+    if (emailLower.endsWith('@gmail.com') || emailLower.endsWith('@googlemail.com')) {
+      return true;
+    }
+
+    const domain = emailLower.split('@')[1];
+    if (!domain) return false;
+
+    try {
+      const records = await dns.promises.resolveMx(domain);
+      return records.some(record => {
+        const exchange = record.exchange.toLowerCase();
+        return exchange.includes('google.com') || exchange.includes('googlemail.com');
+      });
+    } catch (error) {
+      return false;
+    }
+  }
+
   /**
    * Find or create a user from an OAuth provider.
    * If an account with the same email already exists (local), we link the OAuth
@@ -78,6 +101,16 @@ export class AuthService {
     provider: string,
     providerId: string,
   ): Promise<any> {
+    // 0. Verify that the email is a Google email for Google OAuth provider
+    if (provider === 'google') {
+      const isGoogle = await this.checkIsGoogleEmail(email);
+      if (!isGoogle) {
+        throw new BadRequestException(
+          'Only Google-hosted email addresses (Gmail or Google Workspace domains) are allowed for Google Sign-In.'
+        );
+      }
+    }
+
     // 1. Check if a user with this providerId already exists
     let user = await this.prisma.user.findFirst({
       where: { provider, providerId },
@@ -162,5 +195,54 @@ export class AuthService {
 
     const { password, ...result } = updated;
     return result;
+  }
+
+  async generateAndSendOTP(email: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      throw new Error('User with this email not found');
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 mins
+
+    await this.prisma.user.update({
+      where: { email },
+      data: {
+        otpCode: code,
+        otpExpiresAt: expiresAt,
+      },
+    });
+
+    await this.mailService.sendVerificationCode(email, code);
+  }
+
+  async verifyOTP(email: string, code: string): Promise<any> {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    if (!user.otpCode || user.otpCode !== code) {
+      throw new Error('Invalid verification code');
+    }
+
+    if (!user.otpExpiresAt || user.otpExpiresAt < new Date()) {
+      throw new Error('Verification code has expired');
+    }
+
+    // Clear OTP
+    const updatedUser = await this.prisma.user.update({
+      where: { email },
+      data: {
+        otpCode: null,
+        otpExpiresAt: null,
+      },
+    });
+
+    return updatedUser;
   }
 }

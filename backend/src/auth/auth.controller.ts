@@ -65,10 +65,31 @@ export class AuthController {
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
   async googleCallback(@Request() req, @Res() res: Response) {
-    const { access_token } = await this.authService.login(req.user);
+    const email = req.user.email;
+    await this.authService.generateAndSendOTP(email);
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
-    res.redirect(`${frontendUrl}/oauth/callback?token=${access_token}`);
+    res.redirect(`${frontendUrl}/oauth/callback?email=${encodeURIComponent(email)}&otpRequired=true`);
+  }
+
+  @Post('google/verify-otp')
+  async verifyOtp(@Body() body: { email: string; code: string }) {
+    try {
+      const user = await this.authService.verifyOTP(body.email, body.code);
+      return this.authService.login(user);
+    } catch (error) {
+      throw new UnauthorizedException(error.message || 'Verification failed');
+    }
+  }
+
+  @Post('google/resend-otp')
+  async resendOtp(@Body() body: { email: string }) {
+    try {
+      await this.authService.generateAndSendOTP(body.email);
+      return { message: 'Verification code resent successfully' };
+    } catch (error) {
+      throw new UnauthorizedException(error.message || 'Resend failed');
+    }
   }
 
   // ─── GitHub OAuth ─────────────────────────────────────────────────────────
