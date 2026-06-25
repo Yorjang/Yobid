@@ -239,11 +239,15 @@ export class TasksService {
       throw new NotFoundException(`Task ${id} not found`);
     }
 
-    await this.assertProjectManager(task.projectId, userId, userRole);
+    await this.assertProjectAccess(task.projectId, userId, userRole);
 
     await this.prisma.task.update({
       where: { id },
-      data: { isDeleted: true, deletedAt: new Date() },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedById: userId,
+      },
     });
     return { message: 'Task deleted successfully' };
   }

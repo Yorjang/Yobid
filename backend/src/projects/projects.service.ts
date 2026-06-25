@@ -183,11 +183,16 @@ export class ProjectsService {
       throw new NotFoundException(`Project ${id} not found`);
     }
 
-    await this.assertProjectManager(id, userId, userRole);
+    await this.assertWorkspaceAccess(project.workspaceId, userId, userRole);
 
     return this.prisma.project.update({
       where: { id },
-      data: { isActive: false, isDeleted: true, deletedAt: new Date() },
+      data: {
+        isActive: false,
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedById: userId,
+      },
       select: { id: true, name: true, isActive: true, isDeleted: true },
     });
   }

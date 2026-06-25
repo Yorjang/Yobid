@@ -18,7 +18,7 @@ export class TrashService {
     // 1. Fetch soft-deleted Workspaces
     const workspaceWhere: any = { isDeleted: true };
     if (!isSysAdmin) {
-      workspaceWhere.members = { some: { userId } };
+      workspaceWhere.deletedById = userId;
     }
     const workspaces = await this.prisma.workspace.findMany({
       where: workspaceWhere,
@@ -36,10 +36,7 @@ export class TrashService {
       workspace: { isDeleted: false },
     };
     if (!isSysAdmin) {
-      projectWhere.workspace = {
-        isDeleted: false,
-        members: { some: { userId } },
-      };
+      projectWhere.deletedById = userId;
     }
     const projects = await this.prisma.project.findMany({
       where: projectWhere,
@@ -61,20 +58,7 @@ export class TrashService {
       },
     };
     if (!isSysAdmin) {
-      taskWhere.OR = [
-        { creatorId: userId },
-        { assigneeId: userId },
-        {
-          project: {
-            members: { some: { userId } },
-          },
-        },
-        {
-          project: {
-            workspace: { ownerId: userId },
-          },
-        },
-      ];
+      taskWhere.deletedById = userId;
     }
     const tasks = await this.prisma.task.findMany({
       where: taskWhere,
@@ -147,9 +131,9 @@ export class TrashService {
       if (!workspace) throw new NotFoundException('Workspace not found');
       if (!workspace.isDeleted) throw new BadRequestException('Workspace is not deleted');
 
-      // Check permission: Owner or ADMIN
-      if (!isSysAdmin && workspace.ownerId !== userId) {
-        throw new ForbiddenException('Only the workspace owner or ADMIN can restore it');
+      // Check permission: Owner, the person who deleted it, or ADMIN
+      if (!isSysAdmin && workspace.ownerId !== userId && workspace.deletedById !== userId) {
+        throw new ForbiddenException('Only the workspace owner, the person who deleted it, or ADMIN can restore it');
       }
 
       return this.prisma.workspace.update({
@@ -157,6 +141,7 @@ export class TrashService {
         data: {
           isDeleted: false,
           deletedAt: null,
+          deletedById: null,
           isActive: true,
         },
       });
@@ -175,8 +160,8 @@ export class TrashService {
         throw new BadRequestException('Cannot restore project because its parent workspace is deleted. Please restore the workspace first.');
       }
 
-      // Check permission: Project Manager, Workspace Owner, or ADMIN
-      if (!isSysAdmin) {
+      // Check permission: Project Manager, Workspace Owner, the person who deleted it, or ADMIN
+      if (!isSysAdmin && project.deletedById !== userId) {
         const workspaceOwner = project.workspace.ownerId === userId;
         const projectMember = await this.prisma.projectMember.findUnique({
           where: { projectId_userId: { projectId: id, userId } },
@@ -184,7 +169,7 @@ export class TrashService {
         const isManager = projectMember?.role === ProjectRole.MANAGER;
 
         if (!workspaceOwner && !isManager) {
-          throw new ForbiddenException('Only project managers, workspace owners, or ADMIN can restore it');
+          throw new ForbiddenException('Only the person who deleted it, project managers, workspace owners, or ADMIN can restore it');
         }
       }
 
@@ -193,6 +178,7 @@ export class TrashService {
         data: {
           isDeleted: false,
           deletedAt: null,
+          deletedById: null,
           isActive: true,
         },
       });
@@ -218,8 +204,8 @@ export class TrashService {
         throw new BadRequestException('Cannot restore task because its workspace is deleted. Please restore the workspace first.');
       }
 
-      // Check permission: Project Manager, Creator, Assignee, or ADMIN
-      if (!isSysAdmin) {
+      // Check permission: Project Manager, Creator, Assignee, the person who deleted it, or ADMIN
+      if (!isSysAdmin && task.deletedById !== userId) {
         const isCreator = task.creatorId === userId;
         const isAssignee = task.assigneeId === userId;
         const projectMember = await this.prisma.projectMember.findUnique({
@@ -228,7 +214,7 @@ export class TrashService {
         const isManager = projectMember?.role === ProjectRole.MANAGER;
 
         if (!isCreator && !isAssignee && !isManager) {
-          throw new ForbiddenException('Only project managers, creator, assignee, or ADMIN can restore it');
+          throw new ForbiddenException('Only the person who deleted it, project managers, creator, assignee, or ADMIN can restore it');
         }
       }
 
@@ -237,6 +223,7 @@ export class TrashService {
         data: {
           isDeleted: false,
           deletedAt: null,
+          deletedById: null,
         },
       });
     }
@@ -254,9 +241,9 @@ export class TrashService {
       });
       if (!workspace) throw new NotFoundException('Workspace not found');
 
-      // Check permission: Owner or ADMIN
-      if (!isSysAdmin && workspace.ownerId !== userId) {
-        throw new ForbiddenException('Only the workspace owner or ADMIN can permanently delete it');
+      // Check permission: Owner, the person who deleted it, or ADMIN
+      if (!isSysAdmin && workspace.ownerId !== userId && workspace.deletedById !== userId) {
+        throw new ForbiddenException('Only the workspace owner, the person who deleted it, or ADMIN can permanently delete it');
       }
 
       await this.prisma.workspace.delete({ where: { id } });
@@ -270,8 +257,8 @@ export class TrashService {
       });
       if (!project) throw new NotFoundException('Project not found');
 
-      // Check permission: Project Manager, Workspace Owner, or ADMIN
-      if (!isSysAdmin) {
+      // Check permission: Project Manager, Workspace Owner, the person who deleted it, or ADMIN
+      if (!isSysAdmin && project.deletedById !== userId) {
         const workspaceOwner = project.workspace.ownerId === userId;
         const projectMember = await this.prisma.projectMember.findUnique({
           where: { projectId_userId: { projectId: id, userId } },
@@ -279,7 +266,7 @@ export class TrashService {
         const isManager = projectMember?.role === ProjectRole.MANAGER;
 
         if (!workspaceOwner && !isManager) {
-          throw new ForbiddenException('Only project managers, workspace owners, or ADMIN can permanently delete it');
+          throw new ForbiddenException('Only project managers, workspace owners, the person who deleted it, or ADMIN can permanently delete it');
         }
       }
 
@@ -293,8 +280,8 @@ export class TrashService {
       });
       if (!task) throw new NotFoundException('Task not found');
 
-      // Check permission: Project Manager, Creator, or ADMIN
-      if (!isSysAdmin) {
+      // Check permission: Project Manager, Creator, the person who deleted it, or ADMIN
+      if (!isSysAdmin && task.deletedById !== userId) {
         const isCreator = task.creatorId === userId;
         const projectMember = await this.prisma.projectMember.findUnique({
           where: { projectId_userId: { projectId: task.projectId, userId } },
@@ -302,7 +289,7 @@ export class TrashService {
         const isManager = projectMember?.role === ProjectRole.MANAGER;
 
         if (!isCreator && !isManager) {
-          throw new ForbiddenException('Only project managers, creator, or ADMIN can permanently delete it');
+          throw new ForbiddenException('Only project managers, creator, the person who deleted it, or ADMIN can permanently delete it');
         }
       }
 

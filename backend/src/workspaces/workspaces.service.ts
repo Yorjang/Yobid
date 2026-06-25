@@ -135,7 +135,7 @@ export class WorkspacesService {
     });
   }
 
-  /** Soft-delete workspace (owner or ADMIN) */
+  /** Soft-delete workspace */
   async remove(id: number, userId: number, userRole: Role) {
     const workspace = await this.prisma.workspace.findUnique({ where: { id } });
     if (!workspace || !workspace.isActive || workspace.isDeleted) {
@@ -143,12 +143,22 @@ export class WorkspacesService {
     }
 
     if (userRole !== Role.ADMIN && workspace.ownerId !== userId) {
-      throw new ForbiddenException('Only the workspace owner or ADMIN can delete it');
+      const member = await this.prisma.workspaceMember.findUnique({
+        where: { workspaceId_userId: { workspaceId: id, userId } },
+      });
+      if (!member) {
+        throw new ForbiddenException('Only workspace members or ADMIN can delete it');
+      }
     }
 
     return this.prisma.workspace.update({
       where: { id },
-      data: { isActive: false, isDeleted: true, deletedAt: new Date() },
+      data: {
+        isActive: false,
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedById: userId,
+      },
       select: { id: true, name: true, isActive: true, isDeleted: true },
     });
   }

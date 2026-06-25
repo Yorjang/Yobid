@@ -22,6 +22,33 @@ const ROLE_META = {
   GUEST:           { label: 'Guest',            color: '#9ca3af', bg: 'rgba(156,163,175,0.1)' },
 };
 
+const renderAvatar = (targetUser, className = 'dash-avatar') => {
+  const displayName = targetUser?.name || targetUser?.email?.split('@')[0] || 'User';
+  const letter = displayName.charAt(0).toUpperCase();
+  const avatarValue = targetUser?.avatar;
+
+  if (avatarValue && (avatarValue.startsWith('data:image/') || avatarValue.startsWith('http://') || avatarValue.startsWith('https://') || avatarValue.startsWith('/'))) {
+    return (
+      <div 
+        className={className} 
+        style={{ 
+          background: `url(${avatarValue}) center/cover no-repeat`,
+          color: 'transparent'
+        }}
+      >
+        {letter}
+      </div>
+    );
+  }
+
+  const bgStyle = avatarValue ? { background: avatarValue } : {};
+  return (
+    <div className={className} style={bgStyle}>
+      {letter}
+    </div>
+  );
+};
+
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
@@ -162,7 +189,7 @@ export default function Dashboard() {
                 aria-expanded={dropdownOpen}
                 aria-haspopup="true"
               >
-                <div className="dash-avatar">{avatarLetter}</div>
+                {renderAvatar(user, 'dash-avatar')}
                 <span className="dash-user-name">{userDisplayName}</span>
                 <ChevronDown
                   size={14}
@@ -174,7 +201,7 @@ export default function Dashboard() {
                 <div className="dash-dropdown-menu" role="menu">
                   {/* Header: User Info */}
                   <div className="dash-dropdown-header">
-                    <div className="dash-dropdown-avatar">{avatarLetter}</div>
+                    {renderAvatar(user, 'dash-dropdown-avatar')}
                     <div className="dash-dropdown-user-info">
                       <span className="dash-dropdown-name">{userDisplayName}</span>
                       <span className="dash-dropdown-status">

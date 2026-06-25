@@ -55,7 +55,7 @@ model User {
   provider   String?  // 'google' | 'github' | null (local)
   providerId String?  // OAuth provider user ID
   role       Role     @default(MEMBER)
-  avatar     String?
+  avatar     String?  @db.LongText
   isActive     Boolean  @default(true)
   otpCode      String?
   otpExpiresAt DateTime?
@@ -81,6 +81,7 @@ model Workspace {
   isActive    Boolean  @default(true)
   isDeleted   Boolean  @default(false)
   deletedAt   DateTime?
+  deletedById Int?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -112,6 +113,7 @@ model Project {
   isActive    Boolean  @default(true)
   isDeleted   Boolean  @default(false)
   deletedAt   DateTime?
+  deletedById Int?
   startDate   DateTime?
   endDate     DateTime?
   createdAt   DateTime @default(now())
@@ -149,6 +151,7 @@ model Task {
   position    Int        @default(0)
   isDeleted   Boolean    @default(false)
   deletedAt   DateTime?
+  deletedById Int?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 

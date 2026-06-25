@@ -19,6 +19,33 @@ const STATUS_META = {
   DONE:        { label: 'Done',         color: '#10b981', bg: 'rgba(16,185,129,0.1)'  },
 };
 
+const renderAvatar = (targetUser, className = 'dash-avatar') => {
+  const displayName = targetUser?.name || targetUser?.email?.split('@')[0] || 'User';
+  const letter = displayName.charAt(0).toUpperCase();
+  const avatarValue = targetUser?.avatar;
+
+  if (avatarValue && (avatarValue.startsWith('data:image/') || avatarValue.startsWith('http://') || avatarValue.startsWith('https://') || avatarValue.startsWith('/'))) {
+    return (
+      <div 
+        className={className} 
+        style={{ 
+          background: `url(${avatarValue}) center/cover no-repeat`,
+          color: 'transparent'
+        }}
+      >
+        {letter}
+      </div>
+    );
+  }
+
+  const bgStyle = avatarValue ? { background: avatarValue } : {};
+  return (
+    <div className={className} style={bgStyle}>
+      {letter}
+    </div>
+  );
+};
+
 export default function WorkspaceDetailPage() {
   const { id }     = useParams();
   const { user, logout } = useAuth();
@@ -134,7 +161,7 @@ export default function WorkspaceDetailPage() {
           <div className="dash-topbar-right">
             <button className="dash-icon-btn" aria-label="Notifications"><Bell size={18} /></button>
             <button className="dash-user-pill" onClick={() => navigate('/settings')}>
-              <div className="dash-avatar">{avatarLetter}</div>
+              {renderAvatar(user, 'dash-avatar')}
               <span className="dash-user-name">{userDisplayName}</span>
             </button>
             <button className="dash-icon-btn" onClick={() => { logout(); navigate('/login'); }} title="Sign out">
